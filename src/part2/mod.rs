@@ -1,3 +1,4 @@
+#[allow(dead_code, unused_imports)]
 pub mod tree {
     use serde::Serialize;
     use std::cmp::{max, min};
@@ -320,5 +321,229 @@ pub mod tree {
         // println!("{:?}", tree.size());
         // println!("{:?}", tree.count_leaves());
         println!("{:?}", tree.find_max());
+    }
+}
+
+pub mod avl {
+    use std::cmp::max;
+    use serde::Serialize;
+
+    #[derive(Debug, Clone, Serialize)]
+    struct AvlNode {
+        height: i32,
+        value: i32,
+        left: Option<Box<AvlNode>>,
+        right: Option<Box<AvlNode>>
+    }
+
+    #[derive(Debug, Serialize)]
+    struct AvlTree {
+        root: Option<Box<AvlNode>>
+    }
+
+    impl AvlNode {
+        pub fn new(value: i32) -> Self {
+            Self {
+                height: 0,
+                value,
+                left: None,
+                right: None
+            }
+        }
+    }
+
+    impl AvlTree {
+        pub fn new() -> Self {
+            Self {
+                root: None
+            }
+        }
+
+        fn insert(&mut self, value: i32) {
+            let root = self.root.take();
+            self.root = self._insert(root, value)
+        }
+
+        fn _insert(&mut self, mut root: Option<Box<AvlNode>>, value: i32) -> Option<Box<AvlNode>> {
+            match root.clone() {
+                Some(mut root) => {
+                    if value < root.value {
+                        root.left = self._insert(root.left, value);
+                    } else {
+                        root.right = self._insert(root.right, value);
+                    }
+
+                    root.height = max(self.height(&root.left), self.height(&root.right)) + 1;
+
+                    root = self.balance(&mut Some(root.clone())).unwrap_or(root.clone());
+                    return Some(root);
+                }
+                None => {
+                    Some(Box::new(AvlNode::new(value)))
+                }
+            }
+        }
+
+        fn height(&self, node: &Option<Box<AvlNode>>) -> i32 {
+            match node {
+                Some(n) => n.height,
+                None => -1
+            }
+        }
+
+
+        fn balance_factor(&self, node: &Box<AvlNode>) -> i32 {
+            self.height(&node.left) - self.height(&node.right)
+        }
+        fn is_left_heavy(&self, node: &mut Box<AvlNode>) -> bool {
+            self.balance_factor(&node) > 1
+        }
+        fn is_right_heavy(&self, node: &mut Box<AvlNode>) -> bool {
+            self.balance_factor(&node) < -1
+        }
+
+        fn balance(&mut self, root: &mut Option<Box<AvlNode>>) -> Option<Box<AvlNode>> {
+            if let Some(ref mut node) = root {
+                let is_left_heavy = self.is_left_heavy(node);
+                let is_right_heavy = self.is_right_heavy(node);
+
+                if is_left_heavy {
+                    match node.left {
+                        Some(ref mut left) => {
+                            if self.balance_factor(left) < 0 {
+                                node.left = self.rotate_left(&mut node.left);
+                            }
+                            return self.rotate_right(root)
+                        }
+                        None => return None
+                    }
+                } else if is_right_heavy {
+                    match node.right {
+                        Some(ref mut right) => {
+                            if self.balance_factor(right) > 0 {
+                                node.right = self.rotate_right(&mut node.right);
+                            }
+                            return self.rotate_left(root)
+                        }
+                        None => return None
+                    }
+                }
+            }
+            return None
+        }
+
+        fn rotate_left(&mut self, node: &mut Option<Box<AvlNode>>) -> Option<Box<AvlNode>> {
+            // new_root = node.right
+            // node.right = new_root.left
+            // new_root.left = node
+            if let Some(ref mut n) = node {
+                let mut new_root = n.right.take();
+                if let Some(ref mut new_root_node) = new_root {
+                    n.right = new_root_node.left.take();
+                    new_root_node.left = node.take();
+                    self.set_height(node);
+                    self.set_height(&mut new_root);
+                    return new_root;
+                }
+            }
+            None
+        }
+
+        fn rotate_right(&mut self, node: &mut Option<Box<AvlNode>>) -> Option<Box<AvlNode>> {
+            // new_root = node.left
+            // node.left = new_root.right
+            // new_root.right = node
+            if let Some(ref mut n) = node {
+                let mut new_root = n.left.take();
+                if let Some(ref mut new_root_node) = new_root {
+                    n.left = new_root_node.right.take();
+                    new_root_node.right = node.take();
+                    self.set_height(node);
+                    self.set_height(&mut new_root);
+                    return new_root;
+                }
+            }
+            None
+        }
+
+        fn set_height(&self, node: &mut Option<Box<AvlNode>>) {
+            if let Some(ref mut n) = node {
+                n.height = max(self.height(&n.left), self.height(&n.right)) + 1;
+            }
+        }
+
+        fn to_json(&self) -> String {
+            serde_json::to_string_pretty(&self).unwrap()
+        }
+    }
+
+    pub fn run() {
+        let mut avl = AvlTree::new();
+        avl.insert(10);
+        avl.insert(30);
+        avl.insert(20);
+        avl.insert(15);
+        println!("{}", avl.to_json())
+    }
+}
+
+pub mod heaps {
+    #[derive(Debug)]
+    struct Heap {
+        items: Vec<i32>,
+        size: usize
+    }
+
+    impl Heap {
+        pub fn new(length: usize) -> Self {
+            Self {
+                items: vec![0; length],
+                size: 0
+            }
+        }
+
+        pub fn insert(&mut self, value: i32) {
+            if self.is_full() {
+                return;
+            }
+
+            self.items[self.size] = value;
+            self.size += 1;
+            self.bubble_up();
+        }
+
+        fn is_full(&self) -> bool {
+            self.size == self.items.len()
+        }
+
+        fn bubble_up(&mut self) {
+            let mut index  = self.size - 1;
+            while index > 0 && self.items[index] > self.items[self.parent(index)] {
+                println!("index of {}: {}, parent index of {}: {}", index, self.items[index], self.parent(index), self.items[self.parent(index)]);
+                self.swap(index, self.parent(index));
+                index = self.parent(index);
+            }
+        }
+
+        fn swap(&mut self, first: usize, second: usize) {
+            let temp = self.items[first];
+            self.items[first] = self.items[second];
+            self.items[second] = temp;
+        }
+
+        fn parent(&self, index: usize) -> usize {
+            (index - 1) / 2
+        }
+
+    }
+
+    pub fn run () {
+        let mut heaps = Heap::new(10);
+        heaps.insert(10);
+        heaps.insert(5);
+        heaps.insert(17);
+        heaps.insert(4);
+        heaps.insert(22);
+        println!("{:?}", heaps)
     }
 }
