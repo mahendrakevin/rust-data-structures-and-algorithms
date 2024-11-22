@@ -271,8 +271,8 @@ pub mod tree {
                     let left = self._find_max(root.left);
                     let right = self._find_max(root.right);
                     max(max(left, right), root.value)
-                },
-                None => i32::MIN
+                }
+                None => i32::MIN,
             }
         }
 
@@ -325,20 +325,20 @@ pub mod tree {
 }
 
 pub mod avl {
-    use std::cmp::max;
     use serde::Serialize;
+    use std::cmp::max;
 
     #[derive(Debug, Clone, Serialize)]
     struct AvlNode {
         height: i32,
         value: i32,
         left: Option<Box<AvlNode>>,
-        right: Option<Box<AvlNode>>
+        right: Option<Box<AvlNode>>,
     }
 
     #[derive(Debug, Serialize)]
     struct AvlTree {
-        root: Option<Box<AvlNode>>
+        root: Option<Box<AvlNode>>,
     }
 
     impl AvlNode {
@@ -347,16 +347,14 @@ pub mod avl {
                 height: 0,
                 value,
                 left: None,
-                right: None
+                right: None,
             }
         }
     }
 
     impl AvlTree {
         pub fn new() -> Self {
-            Self {
-                root: None
-            }
+            Self { root: None }
         }
 
         fn insert(&mut self, value: i32) {
@@ -375,22 +373,21 @@ pub mod avl {
 
                     root.height = max(self.height(&root.left), self.height(&root.right)) + 1;
 
-                    root = self.balance(&mut Some(root.clone())).unwrap_or(root.clone());
+                    root = self
+                        .balance(&mut Some(root.clone()))
+                        .unwrap_or(root.clone());
                     return Some(root);
                 }
-                None => {
-                    Some(Box::new(AvlNode::new(value)))
-                }
+                None => Some(Box::new(AvlNode::new(value))),
             }
         }
 
         fn height(&self, node: &Option<Box<AvlNode>>) -> i32 {
             match node {
                 Some(n) => n.height,
-                None => -1
+                None => -1,
             }
         }
-
 
         fn balance_factor(&self, node: &Box<AvlNode>) -> i32 {
             self.height(&node.left) - self.height(&node.right)
@@ -413,9 +410,9 @@ pub mod avl {
                             if self.balance_factor(left) < 0 {
                                 node.left = self.rotate_left(&mut node.left);
                             }
-                            return self.rotate_right(root)
+                            return self.rotate_right(root);
                         }
-                        None => return None
+                        None => return None,
                     }
                 } else if is_right_heavy {
                     match node.right {
@@ -423,13 +420,13 @@ pub mod avl {
                             if self.balance_factor(right) > 0 {
                                 node.right = self.rotate_right(&mut node.right);
                             }
-                            return self.rotate_left(root)
+                            return self.rotate_left(root);
                         }
-                        None => return None
+                        None => return None,
                     }
                 }
             }
-            return None
+            return None;
         }
 
         fn rotate_left(&mut self, node: &mut Option<Box<AvlNode>>) -> Option<Box<AvlNode>> {
@@ -491,14 +488,14 @@ pub mod heaps {
     #[derive(Debug)]
     struct Heap {
         items: Vec<i32>,
-        size: usize
+        size: usize,
     }
 
     impl Heap {
         pub fn new(length: usize) -> Self {
             Self {
                 items: vec![0; length],
-                size: 0
+                size: 0,
             }
         }
 
@@ -512,14 +509,92 @@ pub mod heaps {
             self.bubble_up();
         }
 
+        fn remove(&mut self) -> i32 {
+            if self.is_empty() {
+                return -1;
+            }
+
+            let root = self.items[0]; // 2
+            self.items[0] = self.items[self.size - 1]; // 5
+            self.size -= 1; // 4 -> [5, 17, 10, 4, 5]
+            self.bubble_down();
+            root
+        }
+
+        fn bubble_down(&mut self) {
+            let mut index = 0;
+            while index <= self.size && !self.is_valid_parent(index) {
+                let larger_child_index = self.largest_child_index(index);
+
+                self.swap(index, larger_child_index);
+                index = larger_child_index;
+            }
+        }
+
+        fn largest_child_index(&self, index: usize) -> usize {
+            if !self.has_left_child(index) {
+                return index;
+            }
+
+            if !self.has_right_child(index) {
+                return self.left_child_index(index);
+            }
+
+            if self.left_child(index) > self.right_child(index) {
+                self.left_child_index(index)
+            } else {
+                self.right_child_index(index)
+            }
+        }
+
+        fn has_left_child(&self, index: usize) -> bool {
+            self.left_child_index(index) <= self.size
+        }
+
+        fn has_right_child(&self, index: usize) -> bool {
+            self.right_child_index(index) <= self.size
+        }
+
+        fn is_valid_parent(&self, index: usize) -> bool {
+            if !self.has_left_child(index) {
+                return true;
+            }
+
+            let is_valid = self.items[index] >= self.left_child(index);
+            if self.has_right_child(index) {
+                is_valid && self.items[index] >= self.right_child(index)
+            } else {
+                is_valid
+            }
+        }
+
+        fn left_child(&self, index: usize) -> i32 {
+            self.items[self.left_child_index(index)]
+        }
+
+        fn right_child(&self, index: usize) -> i32 {
+            self.items[self.right_child_index(index)]
+        }
+
+        fn left_child_index(&self, index: usize) -> usize {
+            index * 2 + 1
+        }
+
+        fn right_child_index(&self, index: usize) -> usize {
+            index * 2 + 2
+        }
+
         fn is_full(&self) -> bool {
             self.size == self.items.len()
         }
 
+        fn is_empty(&self) -> bool {
+            self.size == 0
+        }
+
         fn bubble_up(&mut self) {
-            let mut index  = self.size - 1;
+            let mut index = self.size - 1;
             while index > 0 && self.items[index] > self.items[self.parent(index)] {
-                println!("index of {}: {}, parent index of {}: {}", index, self.items[index], self.parent(index), self.items[self.parent(index)]);
                 self.swap(index, self.parent(index));
                 index = self.parent(index);
             }
@@ -535,15 +610,614 @@ pub mod heaps {
             (index - 1) / 2
         }
 
+        fn last_parent(&self) -> usize {
+            self.size / 2 - 1
+        }
+
+        pub fn max(&self) -> i32 {
+            if self.is_empty() {
+                return -1;
+            }
+            self.items[0]
+        }
     }
 
-    pub fn run () {
+    struct PriorityQueueWithHeap {
+        heap: Heap,
+    }
+
+    impl PriorityQueueWithHeap {
+        pub fn new(length: usize) -> Self {
+            Self {
+                heap: Heap::new(length),
+            }
+        }
+
+        fn enqueue(&mut self, item: i32) {
+            self.heap.insert(item);
+        }
+
+        fn dequeue(&mut self) -> i32 {
+            self.heap.remove()
+        }
+
+        fn is_empty(&self) -> bool {
+            self.heap.is_empty()
+        }
+    }
+
+    fn heapify(numbers: &mut Vec<i32>) {
+        let len = numbers.len();
+        let last_parent_index = len / 2 - 1;
+        for i in (0..last_parent_index).rev() {
+            _heapify(numbers, i);
+        }
+        println!("{:?}", numbers)
+    }
+
+    fn _heapify(numbers: &mut Vec<i32>, index: usize) {
+        let mut larger_index = index;
+        let left_index = index * 2 + 1;
+        if left_index < numbers.len() && numbers[left_index] > numbers[larger_index] {
+            larger_index = left_index;
+        }
+
+        let right_index = index * 2 + 2;
+        if right_index < numbers.len() && numbers[right_index] > numbers[larger_index] {
+            larger_index = right_index;
+        }
+
+        if index == larger_index {
+            return;
+        }
+        numbers.swap(index, larger_index);
+        _heapify(numbers, larger_index);
+    }
+
+    fn get_kth_largest(numbers: &Vec<i32>, k: i32) -> i32 {
+        if k < 1 || k > numbers.len() as i32 {
+            return -1;
+        }
+        let mut heap = Heap::new(numbers.len());
+        numbers.iter().for_each(|&number| heap.insert(number));
+        for _ in 0..k - 1 {
+            heap.remove();
+        }
+        println!("{:?}", heap);
+        heap.max()
+    }
+
+    pub fn run() {
         let mut heaps = Heap::new(10);
         heaps.insert(10);
         heaps.insert(5);
         heaps.insert(17);
         heaps.insert(4);
         heaps.insert(22);
-        println!("{:?}", heaps)
+        heaps.remove();
+        println!("{:?}", heaps);
+        // let mut numbers = vec![5, 3, 10, 1, 4, 2];
+        // let mut heap2 = Heap::new(numbers.len());
+        // numbers.iter().for_each(|&number| heap2.insert(number));
+
+        // while !heap2.is_empty() {
+        //     println!("{:?}", heap2.remove());
+        // }
+        //
+        // for i in (0..numbers.len()) {
+        //     numbers[i] = heap2.remove();
+        // }
+        // println!("{:?}", numbers);
+
+        // Heapify
+        let mut numbers = vec![5, 3, 8, 4, 1, 2];
+        // println!("{:?}", heapify(&mut numbers));
+
+        println!("{:?}", get_kth_largest(&numbers, 5));
     }
 }
+
+pub mod tries {
+    use serde::Serialize;
+    use std::collections::HashMap;
+
+    const ALPHABET_SIZE: usize = 26;
+    #[derive(Debug, Serialize)]
+    struct TrieNode {
+        children: HashMap<char, TrieNode>,
+        is_end_of_word: bool,
+    }
+
+    impl TrieNode {
+        pub fn new() -> Self {
+            Self {
+                children: HashMap::new(),
+                is_end_of_word: false,
+            }
+        }
+
+        pub fn insert(&mut self, value: &str) {
+            let mut current = self;
+            for c in value.chars() {
+                current = current.children.entry(c).or_insert_with(TrieNode::new);
+            }
+
+            current.is_end_of_word = true;
+        }
+
+        fn has_children(&self, c: &char) -> bool {
+            self.children.contains_key(&c)
+        }
+
+        fn get_children(&self, c: &char) -> Option<&TrieNode> {
+            self.children.get(c)
+        }
+
+        pub fn contains(&self, value: &str) -> bool {
+            let mut current = self;
+            for c in value.chars() {
+                if !current.has_children(&c) {
+                    return false;
+                }
+                current = current.get_children(&c).unwrap();
+            }
+            current.is_end_of_word
+        }
+
+        pub fn traverse(&self) {
+            self.traverse_(' ')
+        }
+        fn traverse_(&self, c: char) {
+            if self.is_end_of_word {
+                println!("End of word");
+            }
+
+            for (key, value) in &self.children {
+                println!("{}", key);
+                value.traverse_(*key);
+            }
+        }
+
+        pub fn remove(&mut self, value: String) {
+            self.remove_(value, 0);
+        }
+
+        fn remove_(&mut self, value: String, index: usize) {
+            if index == value.len() {
+                self.is_end_of_word = false;
+                return;
+            }
+            let c = value.chars().nth(index).unwrap();
+            if let Some(child) = self.children.get_mut(&c) {
+                child.remove_(value.clone(), index + 1);
+                if child.children.is_empty() && !child.is_end_of_word {
+                    self.children.remove(&c);
+                }
+            }
+        }
+
+        pub fn find_words(&mut self, prefix: String) -> Vec<String> {
+            let mut words: Vec<String> = Vec::new();
+            if let Some(node) = self.find_last_node_of(&prefix) {
+                println!("{}", node.to_json());
+                node.find_words_(&prefix, &mut words);
+            }
+            words
+        }
+
+        fn find_words_(&self, prefix: &String, words: &mut Vec<String>) {
+            if self.is_end_of_word {
+                words.push(prefix.clone());
+            }
+
+            for (c, child) in &self.children {
+                let mut new_prefix = prefix.clone();
+                new_prefix.push(c.clone());
+                child.find_words_(&new_prefix, words);
+            }
+        }
+
+        fn find_last_node_of(&self, prefix: &String) -> Option<&TrieNode> {
+            let mut current = self;
+            for ch in prefix.chars() {
+                let child = current.children.get(&ch);
+                match child {
+                    Some(child) => {
+                        current = child;
+                    }
+                    None => return None,
+                }
+            }
+            Some(current)
+        }
+
+        pub fn count_words(&self) -> i32 {
+            let mut count = 0;
+            self.count_words_(&mut count);
+            count
+        }
+
+        fn count_words_(&self, count: &mut i32) {
+            let mut current = self;
+            for (_, child) in &current.children {
+                if child.is_end_of_word {
+                    *count += 1;
+                }
+                child.count_words_(count);
+                current = child;
+            }
+        }
+
+        pub fn longest_common_prefix(&mut self, words: Vec<String>) -> String {
+            if words.is_empty() {
+                return String::new();
+            }
+
+            let mut trie = TrieNode::new();
+            for word in &words {
+                trie.insert(word);
+            }
+
+            let mut prefix = String::new();
+            let mut current = &trie;
+
+            while current.children.len() == 1 && !current.is_end_of_word {
+                let (c, next_node) = current.children.iter().next().unwrap();
+                prefix.push(*c);
+                current = next_node;
+            }
+
+            match self.contains(prefix.as_str()) {
+                true => prefix,
+                false => String::new(),
+            }
+        }
+
+        fn to_json(&self) -> String {
+            serde_json::to_string_pretty(&self).unwrap()
+        }
+    }
+    pub fn run() {
+        // let mut trie = TrieNode::new();
+        // trie.insert("car");
+        // trie.insert("care");
+        // trie.remove("care".to_string());
+        // // trie.traverse();
+        // println!("{}", trie.to_json());
+        let mut trie = TrieNode::new();
+        trie.insert("car");
+        trie.insert("careful");
+        trie.insert("card");
+        trie.insert("care");
+        trie.insert("egg");
+        trie.find_words("egg".to_string());
+        // println!("{:?}", trie.find_words("e".to_string()));
+        // println!("{:?}", trie.count_words());
+        println!(
+            "{:?}",
+            trie.longest_common_prefix(vec!["god".to_string(), "go".to_string()])
+        );
+    }
+}
+
+pub mod graphs {
+    use std::collections::{HashMap, HashSet};
+
+    macro_rules! unwrap_or_return {
+        ($option:expr) => {
+            match $option {
+                Some(value) => value,
+                None => return,
+            }
+        };
+    }
+
+    #[derive(Debug)]
+    struct Stack<T> {
+        elements: Vec<T>,
+    }
+
+    impl<T> Stack<T> {
+        fn new() -> Self {
+            Self {
+                elements: Vec::new(),
+            }
+        }
+
+        fn push(&mut self, item: T) {
+            self.elements.push(item);
+        }
+
+        fn pop(&mut self) -> Option<T> {
+            self.elements.pop()
+        }
+
+        fn peek(&self) -> Option<&T> {
+            self.elements.last()
+        }
+
+        fn is_empty(&self) -> bool {
+            self.elements.is_empty()
+        }
+    }
+
+    #[derive(Debug, Eq, Hash, PartialEq, Clone)]
+    struct GraphNode {
+        label: String,
+    }
+    impl GraphNode {
+        pub fn new(label: String) -> Self {
+            Self { label }
+        }
+    }
+
+    #[derive(Debug)]
+    struct Graph {
+        node: HashMap<String, GraphNode>,
+        adjacency_list: HashMap<String, Vec<GraphNode>>,
+    }
+
+    impl Graph {
+        pub fn new() -> Self {
+            Self {
+                node: HashMap::new(),
+                adjacency_list: HashMap::new(),
+            }
+        }
+
+        pub fn add_node(&mut self, label: String) {
+            let node = GraphNode::new(label.to_owned());
+            self.node.entry(label.to_owned()).or_insert(node);
+            self.adjacency_list
+                .entry(label.to_owned())
+                .or_insert(Vec::new());
+        }
+
+        pub fn remove_node(&mut self, label: String) {
+            let node = unwrap_or_return!(self.node.get(&label).cloned());
+            let keys = self.adjacency_list.keys().cloned().collect::<Vec<String>>();
+            for key in keys {
+                self.adjacency_list.get_mut(&key).and_then(|list| {
+                    let index = list.iter().position(|n| n.eq(&node));
+                    match index {
+                        Some(index) => {
+                            list.remove(index);
+                            Some(())
+                        }
+                        None => None,
+                    }
+                });
+                self.adjacency_list.remove(&label);
+                self.node.remove(&label);
+            }
+        }
+
+        pub fn add_edge(&mut self, from: String, to: String) {
+            let to_node = unwrap_or_return!(self.node.get(&to).cloned());
+            self.adjacency_list.get_mut(&from).and_then(|list| {
+                list.push(to_node);
+                Some(())
+            });
+        }
+
+        pub fn remove_edge(&mut self, from: String, to: String) {
+            let to_node = unwrap_or_return!(self.node.get(&to).cloned());
+            self.adjacency_list.get_mut(&from).and_then(|x| {
+                match x.iter().position(|n| n.eq(&to_node)) {
+                    Some(index) => {
+                        x.remove(index);
+                        Some(())
+                    }
+                    None => None,
+                }
+            });
+        }
+
+        pub fn depth_first_traversal_recursive(&self, root: String) {
+            let mut visited: HashSet<GraphNode> = HashSet::new();
+            let root = unwrap_or_return!(self.node.get(&root).cloned());
+            self.depth_first_traversal_recursive_(root, &mut visited);
+        }
+
+        fn depth_first_traversal_recursive_(
+            &self,
+            root: GraphNode,
+            visited: &mut HashSet<GraphNode>,
+        ) {
+            println!("{:?}", root);
+            visited.insert(root.clone());
+
+            for node in self.adjacency_list.get(&root.label).cloned().unwrap() {
+                if !visited.contains(&node) {
+                    self.depth_first_traversal_recursive_(node, visited);
+                }
+            }
+        }
+
+        pub fn depth_first_traversal_iterative(&mut self, root: String) {
+            let node = unwrap_or_return!(self.node.get(&root).cloned());
+            let mut visited: HashSet<GraphNode> = HashSet::new();
+            let mut stack: Stack<GraphNode> = Stack::new();
+            stack.push(node.clone());
+            while !stack.is_empty() {
+                let current = unwrap_or_return!(stack.pop());
+                if visited.contains(&current) {
+                    continue;
+                }
+                println!("{:?}", current);
+                visited.insert(current.clone());
+                for neighbour in self.get_adjacent_nodes(&current).unwrap() {
+                    if !visited.contains(&neighbour) {
+                        stack.push(neighbour);
+                    }
+                }
+            }
+        }
+
+        pub fn breadth_first_traversal(&mut self, root: String) {
+            let node = unwrap_or_return!(self.node.get(&root).cloned());
+            let mut visited: HashSet<GraphNode> = HashSet::new();
+            let mut queue: Vec<GraphNode> = Vec::new();
+            queue.push(node.clone());
+            while !queue.is_empty() {
+                let current = queue.remove(0);
+                if visited.contains(&current) {
+                    continue;
+                }
+                println!("{:?}", current);
+                visited.insert(current.clone());
+                for neighbour in self.get_adjacent_nodes(&current).unwrap() {
+                    if !visited.contains(&neighbour) {
+                        queue.push(neighbour);
+                    }
+                }
+            }
+        }
+
+        fn get_adjacent_nodes(&self, node: &GraphNode) -> Option<Vec<GraphNode>> {
+            self.adjacency_list.get(&node.label).cloned()
+        }
+
+        pub fn topological_sort(&mut self) -> Vec<String> {
+            let mut visited: HashSet<GraphNode> = HashSet::new();
+            let mut stack: Stack<GraphNode> = Stack::new();
+            let current = self.node.clone();
+            for node in current.values() {
+                self.topological_sort_(node.clone(), &mut visited, &mut stack);
+            }
+
+            let mut sorted: Vec<String> = Vec::new();
+            // println!("{:?}", stack);
+
+            while !stack.is_empty() {
+                sorted.push(stack.pop().unwrap().label)
+            }
+
+            sorted
+        }
+
+        fn topological_sort_(&mut self, node: GraphNode, visited: &mut HashSet<GraphNode>, stack: &mut Stack<GraphNode>) {
+            if visited.contains(&node) {
+                return;
+            }
+
+            // [P, B, X, A]
+            visited.insert(node.clone());
+            for neighbour in self.get_adjacent_nodes(&node).clone().unwrap() {
+                // println!("neighbour {:?}", neighbour);
+                // P
+                self.topological_sort_(neighbour, visited, stack);
+            }
+
+            // [P, B, A, X]
+            stack.push(node);
+            // println!("stack result {:?}", stack);
+        }
+
+        pub fn has_cycle(&mut self) -> bool {
+            let mut all: HashSet<GraphNode> = HashSet::new();
+            self.node.values().for_each(|node| {
+                all.insert(node.clone());
+            });
+
+            let mut visiting: HashSet<GraphNode> = HashSet::new();
+            let mut visited: HashSet<GraphNode> = HashSet::new();
+            println!("{:?}", all);
+
+            while !all.is_empty() {
+                let current = all.iter().next().unwrap().clone();
+                if self.has_cycle_(current, &mut all, &mut visiting, &mut visited) {
+                    return true
+                }
+            }
+            false
+        }
+
+        fn has_cycle_(&self, root: GraphNode, all: &mut HashSet<GraphNode>, visiting: &mut HashSet<GraphNode>, visited: &mut HashSet<GraphNode>) -> bool {
+            all.remove(&root);
+            visiting.insert(root.clone());
+
+            for neighbour in self.get_adjacent_nodes(&root).unwrap() {
+                println!("neighbour {:?}", neighbour);
+                if visited.contains(&neighbour) {
+                    continue
+                }
+
+                if visiting.contains(&neighbour) {
+                    return true
+                }
+
+                if self.has_cycle_(neighbour, all, visiting, visited) {
+                    return true
+                }
+            }
+
+            visiting.remove(&root);
+            visited.insert(root.clone());
+            return false
+        }
+
+        pub fn print(&mut self) {
+            for (key, value) in &self.adjacency_list {
+                let targets = self.adjacency_list.get(key).unwrap();
+                if !targets.is_empty() {
+                    let label = targets
+                        .iter()
+                        .map(|node| node.label.clone())
+                        .collect::<Vec<String>>();
+                    println!("{} is connected to {:?}", key, label);
+                }
+            }
+        }
+    }
+
+    pub fn run() {
+        // let mut graph = Graph::new();
+        // graph.add_node("kevin".to_string());
+        // graph.add_node("vina".to_string());
+        // graph.add_node("becca".to_string());
+        // graph.add_edge("kevin".to_string(), "vina".to_string());
+        // graph.add_edge("kevin".to_string(), "becca".to_string());
+
+        // graph.remove_edge("kevin".to_string(), "d".to_string());
+        // graph.remove_node("kevin".to_string());
+        // graph.add_edge("vina".to_string(), "becca".to_string());
+        // graph.print();
+        // println!("{:?}", graph);
+
+        // let mut graph = Graph::new();
+        // graph.add_node("A".to_string());
+        // graph.add_node("B".to_string());
+        // graph.add_node("C".to_string());
+        // graph.add_node("D".to_string());
+        // graph.add_edge("A".to_string(), "B".to_string());
+        // graph.add_edge("B".to_string(), "D".to_string());
+        // graph.add_edge("D".to_string(), "C".to_string());
+        // graph.add_edge("A".to_string(), "C".to_string());
+        // graph.print();
+        // graph.breadth_first_traversal("D".to_string());
+
+        // let mut graph = Graph::new();
+        // graph.add_node("X".to_string());
+        // graph.add_node("P".to_string());
+        // graph.add_node("A".to_string());
+        // graph.add_node("B".to_string());
+        // graph.add_edge("X".to_string(), "A".to_string());
+        // graph.add_edge("X".to_string(), "B".to_string());
+        // graph.add_edge("A".to_string(), "P".to_string());
+        // graph.add_edge("B".to_string(), "P".to_string());
+        // println!("{:?}", graph.topological_sort());
+        // graph.print();
+
+        let mut graph = Graph::new();
+        graph.add_node("A".to_string());
+        graph.add_node("B".to_string());
+        graph.add_node("C".to_string());
+        graph.add_edge("A".to_string(), "B".to_string());
+        graph.add_edge("B".to_string(), "C".to_string());
+        graph.add_edge("C".to_string(), "A".to_string());
+        println!("{:?}", graph.has_cycle());
+    }
+}
+
+
