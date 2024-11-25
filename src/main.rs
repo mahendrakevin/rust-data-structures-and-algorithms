@@ -9,5 +9,6 @@ fn main() {
     // part2::avl::run();
     // part2::heaps::run();
     // part2::tries::run();
-    part2::graphs::run();
+    // part2::graphs::run();
+    part2::ungraphs::run();
 }

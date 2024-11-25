@@ -913,30 +913,30 @@ pub mod graphs {
     }
 
     #[derive(Debug)]
-    struct Stack<T> {
+    pub struct Stack<T> {
         elements: Vec<T>,
     }
 
     impl<T> Stack<T> {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 elements: Vec::new(),
             }
         }
 
-        fn push(&mut self, item: T) {
+        pub fn push(&mut self, item: T) {
             self.elements.push(item);
         }
 
-        fn pop(&mut self) -> Option<T> {
+        pub fn pop(&mut self) -> Option<T> {
             self.elements.pop()
         }
 
-        fn peek(&self) -> Option<&T> {
+        pub fn peek(&self) -> Option<&T> {
             self.elements.last()
         }
 
-        fn is_empty(&self) -> bool {
+        pub fn is_empty(&self) -> bool {
             self.elements.is_empty()
         }
     }
@@ -1220,4 +1220,378 @@ pub mod graphs {
     }
 }
 
+pub mod ungraphs {
+    use std::cmp::{min, Reverse};
+    use std::collections::{HashMap, HashSet};
+    use crate::part2::graphs;
+    use crate::part2::graphs::Stack;
+
+    macro_rules! unwrap_or_return {
+        ($option:expr) => {
+            match $option {
+                Some(value) => value,
+                None => return,
+            }
+        };
+    }
+
+    #[derive(Debug)]
+    struct Path {
+        nodes: Vec<String>,
+    }
+
+    impl Path {
+        pub fn new() -> Self {
+            Self {
+                nodes: Vec::new(),
+            }
+        }
+
+        pub fn add_node(&mut self, node: String) {
+            self.nodes.push(node);
+        }
+
+        pub fn to_string(&self) -> String {
+            self.nodes.join(" -> ")
+        }
+    }
+
+    #[derive(Debug)]
+    struct PriorityQueue<T: Ord> {
+        elements: Vec<T>,
+    }
+
+    impl<T: Ord> PriorityQueue<T> {
+        pub fn new() -> Self {
+            Self {
+                elements: Vec::new(),
+            }
+        }
+
+        pub fn enqueue(&mut self, item: T) {
+            self.elements.push(item);
+            // Sort in ascending order
+            self.elements.sort();
+        }
+
+        pub fn dequeue(&mut self) -> Option<T> {
+            self.elements.pop()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.elements.is_empty()
+        }
+
+        pub fn peek(&self) -> Option<&T> {
+            self.elements.last()
+        }
+
+        pub fn count(&self) -> usize {
+            self.elements.len()
+        }
+
+        pub fn get_all(&self) -> &Vec<T> {
+            &self.elements
+        }
+    }
+
+    #[derive(Debug, Eq, Hash, PartialEq, Clone, Ord, PartialOrd)]
+    struct GraphNode {
+        label: String,
+        edges: Vec<Edge>
+    }
+    impl GraphNode {
+        pub fn new(label: String) -> Self {
+            Self { label, edges: Vec::new() }
+        }
+
+        pub fn add_edge(&mut self, to: GraphNode, weight: i32) {
+            self.edges.push(Edge::new(self.clone(), to, weight));
+        }
+
+        pub fn get_edges(&self) -> Vec<Edge> {
+            self.edges.clone()
+        }
+    }
+
+    #[derive(Debug, Eq, Hash, PartialEq, Clone, Ord, PartialOrd)]
+    struct Edge {
+        from: GraphNode,
+        to: GraphNode,
+        weight: i32
+    }
+
+    impl Edge {
+        pub fn new(from: GraphNode, to: GraphNode, weight: i32) -> Self {
+            Self {
+                from,
+                to,
+                weight
+            }
+        }
+
+        pub fn to_string(&self) -> String {
+            format!("{} -> {} ({})", self.from.label, self.to.label, self.weight)
+        }
+    }
+
+    #[derive(Debug)]
+    struct WeightedGraphs {
+        nodes: HashMap<String, GraphNode>
+    }
+
+    #[derive(Debug, Hash, Ord, Eq, PartialEq, PartialOrd)]
+    struct NodeEntry {
+        node: GraphNode,
+        priority: i32
+    }
+
+    impl NodeEntry {
+        pub fn new(node: GraphNode, priority: i32) -> Self {
+            Self {
+                node,
+                priority
+            }
+        }
+    }
+
+    impl WeightedGraphs {
+        pub fn new() -> Self {
+            Self {
+                nodes: HashMap::new()
+            }
+        }
+
+        pub fn to_string(&self) -> String {
+            let mut result = String::new();
+            self.nodes.values().into_iter().for_each(
+                |node| {
+                    let edges = node.get_edges().iter().map(|edge| edge.to_string()).collect::<Vec<String>>().join(", ");
+                    result.push_str(&format!("{} -> [{}]\n", node.label, edges));
+                }
+            );
+            result
+        }
+
+        pub fn add_node(&mut self, label: String) {
+            self.nodes.entry(label.to_owned()).or_insert(GraphNode::new(label));
+        }
+
+        pub fn add_edge(&mut self, from: String, to: String, weight: i32) {
+            let to_node = unwrap_or_return!(self.nodes.get(&to).cloned());
+            let from_node = unwrap_or_return!(self.nodes.get(&from).cloned());
+            if let Some(from) = self.nodes.get_mut(&from) {
+                from.add_edge(to_node, weight);
+            }
+            if let Some(to) = self.nodes.get_mut(&to) {
+                to.add_edge(from_node, weight);
+            }
+        }
+
+
+
+        pub fn get_shortest_path(&self, from: String, to: String) -> Path {
+            let from_node = if let Some(from_node) = self.nodes.get(&from).cloned() {
+                from_node
+            } else {
+                return Path::new()
+            };
+            let to_node = if let Some(to_node) = self.nodes.get(&to).cloned() {
+                to_node
+            } else {
+                return Path::new()
+            };
+            println!("from {} to {}", from_node.label, to_node.label);
+
+            let mut distance: HashMap<GraphNode, i32> = HashMap::new();
+            for node in self.nodes.values() {
+                distance.insert(node.clone(), i32::MAX);
+            }
+            distance.insert(from_node.clone(), 0);
+            distance.iter().for_each(|(key, value)| {
+                println!("distance {} -> {}", key.label, value);
+            });
+
+            let mut previous_nodes: HashMap<GraphNode, GraphNode> = HashMap::new();
+            let mut visited: HashSet<GraphNode> = HashSet::new();
+            let mut queue = priority_queue::PriorityQueue::new();
+            queue.push(NodeEntry::new(from_node.clone(), 0), Reverse(0));
+            println!("Added to queue {}", from_node.label);
+            println!();
+
+            while let Some((NodeEntry { node: current, .. }, _)) = queue.pop() {
+                visited.insert(current.clone());
+                println!("Visited [{}]", visited.iter().map(|x|x.label.clone()).collect::<Vec<String>>().join(", "));
+
+                println!("Processing Node {} == {}", current.label, current.get_edges().iter()
+                    .map(|x|x.to_string()).collect::<Vec<String>>().join(", "));
+                for edge in current.get_edges() {
+                    println!("processing Edge {} > {} with weight {}", edge.from.label,
+                             edge.to.label, edge.weight);
+                    let neighbor = self.nodes.get(&edge.to.label).cloned().unwrap();
+                    if visited.contains(&neighbor) {
+                        println!("Already visited {}", neighbor.label);
+                        continue;
+                    }
+
+                    let new_distance = distance[&current] + edge.weight;
+                    println!("New distance for {} is {}", neighbor.label, new_distance);
+                    if new_distance < distance[&neighbor] {
+                        println!("The new distance is less than the current distance {} < {}", new_distance, distance[&neighbor]);
+                        distance.insert(neighbor.clone(), new_distance);
+                        previous_nodes.insert(neighbor.clone(), current.clone());
+                        println!("Add to queue {} with distance {}", neighbor.label, new_distance);
+                        queue.push(NodeEntry::new(neighbor.clone(), new_distance), Reverse(new_distance));
+                    }
+                    println!();
+                }
+            }
+
+            previous_nodes.iter().for_each(|(key, value)| {
+                println!("{} -> {}", key.label, value.label);
+            });
+
+            self.build_path(to_node, previous_nodes)
+        }
+
+        fn build_path(&self, to_node: GraphNode, previous_nodes: HashMap<GraphNode, GraphNode>) -> Path {
+            let mut path = Path::new();
+            let mut current_label = to_node.clone();
+
+            while let Some(prev_label) = previous_nodes.get(&current_label) {
+                path.add_node(current_label.label.clone());
+                current_label = prev_label.clone();
+            }
+            path.add_node(current_label.label);
+            path.nodes.reverse();
+            path
+        }
+
+        pub fn get_edges(&self, node: String) {
+            let result = unwrap_or_return!(self.nodes.get(&node).cloned());
+            println!("Edges for node {}", result.label);
+            result.get_edges().iter().for_each(|edge| {
+                println!("{}", edge.to_string());
+            });
+        }
+
+        pub fn has_cycle(&self) -> bool {
+            let mut visited: HashSet<String> = HashSet::new();
+            for node in self.nodes.values() {
+                println!("Checking node {}", node.label);
+                if !visited.contains(&node.label) &&
+                    self.has_cycle_(node.clone(), &mut visited, &GraphNode::new("".to_string())) {
+                    return true
+                }
+            }
+            false
+        }
+
+        fn has_cycle_(&self, node: GraphNode, visited: &mut HashSet<String>, parent: &GraphNode) -> bool {
+            visited.insert(node.label.clone());
+            for edge in node.get_edges() {
+                println!("Checking edge {} -> {}", edge.from.label, edge.to.label);
+                if edge.to == *parent {
+                    continue
+                }
+
+                if visited.contains(&edge.to.label) ||
+                    self.has_cycle_(edge.to.clone(), visited, &node) {
+                    return true
+                }
+            }
+            return false
+        }
+
+        pub fn get_minimum_spanning_tree(&self) -> Self {
+            let mut tree = WeightedGraphs::new();
+            if self.nodes.is_empty() {
+                return tree
+            }
+            let start_node = self.nodes.values().next().unwrap().clone();
+            let mut edges = priority_queue::PriorityQueue::new();
+            start_node.get_edges().iter().for_each(|edge| {
+                edges.push(edge.clone(), Reverse(edge.weight));
+            });
+
+            if edges.is_empty() {
+                return tree
+            }
+
+
+            tree.add_node(start_node.label.clone());
+
+            while tree.nodes.len() < self.nodes.len() {
+                let (min_edge, weight) = edges.pop().unwrap();
+                println!("Dequeue edge {}", min_edge.to_string());
+                let next_node = &min_edge.to;
+                if tree.contains_node(&next_node.label) {
+                    continue
+                }
+
+                tree.add_node(next_node.label.clone());
+                tree.add_edge(min_edge.from.label.clone(), next_node.label.clone(), min_edge.weight);
+                next_node.get_edges().iter().for_each(|edge| {
+                    if !tree.contains_node(&edge.to.label) {
+                        edges.push(edge.clone(), Reverse(edge.weight));
+                    }
+                });
+            }
+
+            tree
+
+        }
+
+        pub fn contains_node(&self, label: &String) -> bool {
+            self.nodes.contains_key(label)
+        }
+    }
+
+    pub fn run () {
+        // let mut graph = WeightedGraphs::new();
+        // graph.add_node("A".to_string());
+        // graph.add_node("B".to_string());
+        // graph.add_node("C".to_string());
+        // graph.add_edge("A".to_string(), "B".to_string(), 3);
+        // graph.add_edge("A".to_string(), "C".to_string(), 2);
+        // println!("{}", graph.to_string());
+
+        let mut graph = WeightedGraphs::new();
+        graph.add_node("A".to_string());
+        graph.add_node("B".to_string());
+        graph.add_node("C".to_string());
+        graph.add_edge("A".to_string(), "B".to_string(), 1);
+        graph.add_edge("B".to_string(), "C".to_string(), 2);
+        graph.add_edge("A".to_string(), "C".to_string(), 10);
+        println!("{}", graph.to_string());
+        graph.get_edges("B".to_string());
+        println!();
+        println!("shortest path: {}", graph.get_shortest_path("A".to_string(), "C".to_string()).to_string());
+
+        // let mut graph = WeightedGraphs::new();
+        // graph.add_node("A".to_string());
+        // graph.add_node("B".to_string());
+        // graph.add_node("C".to_string());
+        // graph.add_edge("A".to_string(), "B".to_string(), 0);
+        // graph.add_edge("B".to_string(), "C".to_string(), 0);
+        // graph.add_edge("C".to_string(), "A".to_string(), 0);
+        // // graph.add_edge("C".to_string(), "A".to_string(), 10);
+        // println!("{}", graph.to_string());
+        // println!("{}", graph.has_cycle());
+
+        let mut graph = WeightedGraphs::new();
+        graph.add_node("A".to_string());
+        graph.add_node("B".to_string());
+        graph.add_node("C".to_string());
+        graph.add_node("D".to_string());
+        graph.add_edge("A".to_string(), "B".to_string(), 3);
+        graph.add_edge("B".to_string(), "D".to_string(), 4);
+        graph.add_edge("C".to_string(), "D".to_string(), 5);
+        graph.add_edge("A".to_string(), "C".to_string(), 1);
+        graph.add_edge("B".to_string(), "C".to_string(), 2);
+        // println!("{}", graph.to_string());
+        let tree = graph.get_minimum_spanning_tree();
+        println!("{}", tree.to_string());
+    }
+}
 
